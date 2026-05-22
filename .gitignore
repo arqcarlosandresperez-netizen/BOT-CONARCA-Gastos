@@ -1,0 +1,38 @@
+# Entornos virtuales
+venv/
+.venv/
+env/
+ENV/
+
+# Caché de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Configuración local y credenciales (¡NUNCA SUBIR AL CONTROL DE VERSIONES!)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.json
+
+# IDEs y Editores de texto
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Logs y Archivos temporales
+*.log
+logs/
+tmp/
+temp/
