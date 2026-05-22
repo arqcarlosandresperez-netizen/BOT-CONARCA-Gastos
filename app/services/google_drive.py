@@ -67,26 +67,45 @@ class GoogleDriveService:
             token = self._obtener_token_acceso()
             url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart"
             
-            cabeceras = {
-                "Authorization": f"Bearer {token}"
-            }
-
             # Definimos los metadatos del archivo en formato JSON
             metadatos = {
                 "name": nombre_archivo,
                 "parents": [carpeta_destino_id]
             }
 
-            # Estructuramos la carga útil multipart manualmente para optimizar rendimiento y asincronía con httpx
-            archivos = {
-                "metadata": (None, json.dumps(metadatos), "application/json; charset=UTF-8"),
-                "file": (nombre_archivo, contenido, tipo_mime)
+            # Construimos el cuerpo multipart/related de manera manual
+            # Esto garantiza que la API de Google Drive v3 reciba el formato exacto requerido (RFC 2387)
+            # y previene que sea rechazado por enviarse como 'multipart/form-data'
+            boundary = "boundary_conarca_gastos_whatsapp"
+            
+            cuerpo_metadata = (
+                f"--{boundary}\r\n"
+                "Content-Type: application/json; charset=UTF-8\r\n\r\n"
+                f"{json.dumps(metadatos)}\r\n"
+                f"--{boundary}\r\n"
+                f"Content-Type: {tipo_mime}\r\n\r\n"
+            ).encode("utf-8")
+            
+            cuerpo_footer = f"\r\n--{boundary}--\r\n".encode("utf-8")
+            
+            # Consolidamos todo el payload en formato binario
+            cuerpo_completo = cuerpo_metadata + contenido + cuerpo_footer
+            
+            cabeceras = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": f"multipart/related; boundary={boundary}",
+                "Content-Length": str(len(cuerpo_completo))
             }
 
             logger.info("Subiendo archivo '%s' (%s bytes) a Google Drive...", nombre_archivo, len(contenido))
             
             async with httpx.AsyncClient() as cliente:
-                respuesta = await cliente.post(url, headers=cabeceras, files=archivos, timeout=30.0)
+                respuesta = await cliente.post(
+                    url, 
+                    headers=cabeceras, 
+                    content=cuerpo_completo, 
+                    timeout=30.0
+                )
                 
             if respuesta.status_code == 200:
                 datos_archivo = respuesta.json()
