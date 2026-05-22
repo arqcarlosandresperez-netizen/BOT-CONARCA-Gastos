@@ -17,7 +17,7 @@ class GeminiService:
         Inicializa y configura el cliente oficial de Google Generative AI con la API Key.
         """
         genai.configure(api_key=settings.GEMINI_API_KEY)
-        self.modelo_nombre = "gemini-1.5-flash"
+        self.modelo_nombre = "gemini-2.5-flash"
         
     async def analizar_gasto(
         self, 
