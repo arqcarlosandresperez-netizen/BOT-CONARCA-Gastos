@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import json
@@ -25,6 +25,10 @@ class Settings(BaseSettings):
 
     # Google Cloud (Service Account)
     GOOGLE_SERVICE_ACCOUNT_JSON: str = Field(..., description="Contenido en string del archivo JSON de la Service Account de Google")
+
+    # Configuración de Grupos (Opcional, permite inyectar grupos.json en producción sin exponer archivos)
+    GRUPOS_CONFIG: Optional[str] = Field(default=None, description="Configuración JSON de los grupos/obras mapeados en el sistema")
+
 
     @field_validator("GOOGLE_SERVICE_ACCOUNT_JSON")
     @classmethod

@@ -1,6 +1,7 @@
 import os
 import json
 from typing import Dict, Any, Optional
+from app.config import settings
 from app.utils.logger import logger
 from app.services.whatsapp import whatsapp_service
 from app.services.gemini import gemini_service
@@ -24,8 +25,8 @@ class GastoProcessor:
 
     def _obtener_config_grupo(self, chat_id: str, remitente: str) -> Dict[str, Any]:
         """
-        Carga grupos.json dinámicamente y mapea el chat_id o remitente a su configuración.
-        Ofrece un fallback seguro a la clave 'default'.
+        Carga la configuración de grupos dinámicamente desde la variable de entorno GRUPOS_CONFIG
+        o desde el archivo local grupos.json como fallback seguro. Mapea chat_id/remitente.
         
         Args:
             chat_id: ID del grupo o canal de WhatsApp.
@@ -34,23 +35,37 @@ class GastoProcessor:
         Returns:
             Diccionario con la configuración del proyecto ('sheet_id', 'drive_folder_id', 'nombre').
         """
-        ruta_config = os.path.join(os.getcwd(), "grupos.json")
+        grupos = {}
         config_defecto = {
             "nombre": "Gastos Sin Categorizar",
             "sheet_id": "",
             "drive_folder_id": ""
         }
 
-        if not os.path.exists(ruta_config):
-            logger.warning("El archivo grupos.json no existe. Se usará configuración vacía.")
+        # 1. Intentar cargar desde la variable de entorno GRUPOS_CONFIG (Prioridad en producción / Render)
+        if settings.GRUPOS_CONFIG:
+            try:
+                logger.info("Cargando mapeo de grupos desde la variable de entorno GRUPOS_CONFIG...")
+                grupos = json.loads(settings.GRUPOS_CONFIG)
+            except Exception as e:
+                logger.error("Error al parsear GRUPOS_CONFIG desde la variable de entorno: %s", str(e))
+
+        # 2. Si no se cargó nada desde la variable de entorno, buscar el archivo local grupos.json (Fallback / Local)
+        if not grupos:
+            ruta_config = os.path.join(os.getcwd(), "grupos.json")
+            if os.path.exists(ruta_config):
+                try:
+                    logger.info("Cargando mapeo de grupos desde el archivo local grupos.json...")
+                    with open(ruta_config, "r", encoding="utf-8") as f:
+                        grupos = json.load(f)
+                except Exception as e:
+                    logger.error("Error leyendo grupos.json: %s. Se usará fallback vacío.", str(e))
+            else:
+                logger.warning("No se encontró configuración en GRUPOS_CONFIG ni el archivo local grupos.json.")
+
+        if not grupos:
             return config_defecto
 
-        try:
-            with open(ruta_config, "r", encoding="utf-8") as f:
-                grupos = json.load(f)
-        except Exception as e:
-            logger.error("Error leyendo grupos.json: %s. Usando fallback.", str(e))
-            return config_defecto
 
         # 1. Intentar buscar por chat_id (JID del grupo)
         if chat_id in grupos:

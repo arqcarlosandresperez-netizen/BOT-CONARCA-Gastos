@@ -24,3 +24,6 @@ services:
         sync: false
       - key: GOOGLE_SERVICE_ACCOUNT_JSON
         sync: false
+      - key: GRUPOS_CONFIG
+        sync: false
+
