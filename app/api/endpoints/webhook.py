@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Request, Response, Query, status, HTTPException
+from fastapi import APIRouter, Request, Response, Query, status, HTTPException, BackgroundTasks
 from fastapi.responses import PlainTextResponse
 from app.config import settings
 from app.utils.logger import logger
+from app.services.gasto_processor import gasto_processor
 
 router = APIRouter()
 
@@ -56,13 +57,14 @@ async def verificar_webhook(
     summary="Recepción de eventos de WhatsApp",
     description="Recibe eventos en tiempo real (mensajes de texto, imágenes, audios) enviados al bot por WhatsApp."
 )
-async def recibir_evento_webhook(request: Request) -> Response:
+async def recibir_evento_webhook(request: Request, background_tasks: BackgroundTasks) -> Response:
     """
     Procesa las notificaciones de mensajes entrantes de la API de WhatsApp Cloud.
     Valida que los mensajes no sean propios del bot ni del sistema antes de procesarlos.
     
     Args:
         request: Petición HTTP que contiene el cuerpo JSON enviado por Meta.
+        background_tasks: Gestor de tareas en segundo plano de FastAPI.
         
     Returns:
         Respuesta HTTP 200 OK inmediata para confirmar la recepción a Meta.
@@ -88,6 +90,12 @@ async def recibir_evento_webhook(request: Request) -> Response:
             value = change.get("value", {})
             if "messages" not in value:
                 continue
+
+            # Extraemos el nombre de perfil del remitente si está disponible
+            contacts = value.get("contacts", [])
+            persona_nombre = "Usuario"
+            if contacts:
+                persona_nombre = contacts[0].get("profile", {}).get("name", "Usuario")
 
             for message in value.get("messages", []):
                 # -------------------------------------------------------------
@@ -133,6 +141,16 @@ async def recibir_evento_webhook(request: Request) -> Response:
                 logger.info(" ID Mensaje: %s", message.get("id"))
                 logger.info(" Contenido : %s", contenido_legible)
                 logger.info("============================================================")
+
+                # -------------------------------------------------------------
+                # PROGRAMAR TAREA EN SEGUNDO PLANO (COORDINADOR MVP)
+                # -------------------------------------------------------------
+                logger.info("Encolando procesamiento asíncrono para el gasto...")
+                background_tasks.add_task(
+                    gasto_processor.procesar_mensaje,
+                    message,
+                    persona_nombre
+                )
 
     # Retornamos 200 OK siempre para Meta, garantizando que no reintenten enviar la misma carga
     return Response(status_code=status.HTTP_200_OK)
