@@ -8,7 +8,6 @@ router = APIRouter()
 
 @router.get(
     "/webhook",
-    response_class=PlainTextResponse,
     summary="Verificación del Webhook de WhatsApp",
     description="Endpoint requerido por Meta para validar la propiedad del webhook usando un token de verificación."
 )
@@ -16,39 +15,47 @@ async def verificar_webhook(
     hub_mode: str = Query(None, alias="hub.mode"),
     hub_challenge: str = Query(None, alias="hub.challenge"),
     hub_verify_token: str = Query(None, alias="hub.verify_token")
-) -> str:
+) -> Response:
     """
     Gestiona la verificación GET de Meta para registrar el webhook.
-    
-    Args:
-        hub_mode: El modo enviado por Meta (debe ser 'subscribe').
-        hub_challenge: El reto aleatorio enviado por Meta a retornar.
-        hub_verify_token: El token de verificación enviado por Meta.
-        
-    Returns:
-        El valor de hub_challenge si el token de verificación coincide.
-        
-    Raises:
-        HTTPException: Si la validación falla (403 Forbidden).
+    Aplica limpieza de espacios (.strip()) y logs detallados para diagnóstico seguro en producción.
     """
-    logger.info("Recibida solicitud de verificación de webhook de Meta.")
+    logger.info("============================================================")
+    logger.info("🔍 PETICIÓN DE VERIFICACIÓN DE WEBHOOK RECIBIDA")
+    logger.info("Parámetros Recibidos:")
+    logger.info("  - hub.mode: %s", hub_mode)
+    logger.info("  - hub.challenge: %s", hub_challenge)
+    logger.info("  - hub.verify_token (recibido): %s", f"*** (Longitud: {len(hub_verify_token)})" if hub_verify_token else "Ninguno")
     
-    if hub_mode and hub_verify_token:
-        if hub_mode == "subscribe" and hub_verify_token == settings.WHATSAPP_VERIFY_TOKEN:
-            logger.info("Webhook verificado exitosamente con Meta.")
-            return hub_challenge
+    token_config = settings.WHATSAPP_VERIFY_TOKEN
+    logger.info("Configuración del Servidor:")
+    logger.info("  - WHATSAPP_VERIFY_TOKEN (esperado): %s", f"*** (Longitud: {len(token_config)})" if token_config else "NO CONFIGURADO EN EL .ENV")
+    
+    if hub_mode and hub_verify_token and hub_challenge:
+        # Aplicamos .strip() para evitar fallos por espacios accidentales invisibles en Render o Meta
+        token_recibido_limpio = hub_verify_token.strip()
+        token_config_limpio = token_config.strip() if token_config else ""
+        
+        if hub_mode == "subscribe" and token_recibido_limpio == token_config_limpio:
+            logger.info("✅ VERIFICACIÓN EXITOSA: Los tokens coinciden. Retornando hub.challenge.")
+            logger.info("============================================================")
+            # Retornamos directamente un PlainText Response usando el objeto Response plano de FastAPI
+            return Response(content=hub_challenge, media_type="text/plain", status_code=status.HTTP_200_OK)
         else:
-            logger.warning("Fallo en la verificación del webhook: token inválido.")
+            logger.warning("❌ VERIFICACIÓN FALLIDA: Los tokens NO coinciden o el modo no es 'subscribe'.")
+            logger.info("============================================================")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Token de verificación inválido"
             )
             
-    logger.error("Solicitud de verificación mal formada.")
+    logger.error("❌ VERIFICACIÓN RECHAZADA: Solicitud mal formada o faltan parámetros query.")
+    logger.info("============================================================")
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
         detail="Parámetros de verificación faltantes"
     )
+
 
 
 @router.post(
