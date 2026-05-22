@@ -101,6 +101,17 @@ class GeminiService:
 
         except Exception as e:
             logger.exception("Error al interactuar con Gemini o parsear la respuesta: %s", str(e))
+            
+            # --- DIAGNÓSTICO EN TIEMPO DE ERROR ---
+            try:
+                logger.info("Iniciando autodiagnóstico: listando modelos disponibles con la API Key...")
+                modelos_disponibles = []
+                for m in genai.list_models():
+                    modelos_disponibles.append(m.name)
+                logger.info("Modelos accesibles con esta API Key: %s", modelos_disponibles)
+            except Exception as diag_err:
+                logger.error("Error crítico durante el autodiagnóstico de Gemini (posible API Key inválida o API deshabilitada en GCP): %s", str(diag_err))
+            
             # Retornamos un objeto vacío/fallido para no romper el flujo
             return GastoExtraido(
                 valor=None,
@@ -114,3 +125,4 @@ class GeminiService:
 
 # Instancia singleton para importar en la aplicación
 gemini_service = GeminiService()
+
